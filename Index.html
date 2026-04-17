@@ -2,133 +2,154 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Company Sim Prototype</title>
+    <title>我的公司模擬器 - 開發預覽</title>
     <style>
-        body { margin: 0; background: #222; color: white; font-family: sans-serif; overflow: hidden; }
-        canvas { display: block; background: #333; border: 2px solid #555; margin: 10px auto; }
-        .ui { position: absolute; top: 10px; left: 10px; pointer-events: none; }
-        .info { background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; }
+        /* 基本樣式設定，確保畫面不是全黑 */
+        body { margin: 0; background: #1a1a1a; color: #eee; font-family: "Microsoft JhengHei", sans-serif; display: flex; flex-direction: column; align-items: center; }
+        h2 { margin: 10px 0; }
+        #game-container { position: relative; border: 4px solid #444; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        canvas { background: #2c3e50; display: block; cursor: crosshair; }
+        .ui-panel { padding: 10px; background: #333; width: 800px; display: flex; justify-content: space-between; }
+        .log { font-size: 12px; color: #aaa; }
     </style>
 </head>
 <body>
 
-<div class="ui">
-    <div class="info">
-        <h3>公司模擬原型</h3>
-        <p>員工正在自動尋找設備並提升屬性...</p>
-        <div id="status-board"></div>
+    <h2>🏢 公司經營模擬器 (v0.1)</h2>
+    
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
     </div>
-</div>
 
-<canvas id="gameCanvas"></canvas>
+    <div class="ui-panel">
+        <div>
+            <strong>員工動態：</strong> <span id="statusText">等待啟動...</span>
+        </div>
+        <div class="log" id="debugLog">系統日誌：準備就緒</div>
+    </div>
 
 <script>
-/**
- * 核心配置與初始化
- */
+// --- 1. 初始化與全域變數 ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const statusBoard = document.getElementById('status-board');
+const statusText = document.getElementById('statusText');
+const debugLog = document.getElementById('debugLog');
 
-canvas.width = 800;
-canvas.height = 600;
-
-// 遊戲資料
 const employees = [];
 const components = [];
 
-// 1. 定義設備類別
+// --- 2. 類別定義 ---
 class OfficeComponent {
-    constructor(id, type, x, y, attr) {
-        this.id = id;
+    constructor(type, x, y, color) {
         this.type = type;
         this.x = x;
         this.y = y;
-        this.attr = attr; // 提升哪種屬性
+        this.color = color;
         this.size = 40;
     }
     draw() {
-        ctx.fillStyle = this.type === 'PC' ? '#4a90e2' : '#e2a74a';
+        ctx.fillStyle = this.color;
         ctx.fillRect(this.x, this.y, this.size, this.size);
         ctx.fillStyle = 'white';
+        ctx.font = '12px Arial';
         ctx.fillText(this.type, this.x + 5, this.y + 25);
     }
 }
 
-// 2. 定義員工類別
 class Employee {
     constructor(name, x, y) {
         this.name = name;
         this.x = x;
         this.y = y;
-        this.intel = 10;
+        this.iq = 10;
         this.target = null;
-        this.speed = 2;
+        this.speed = 1.5;
     }
 
-    // 尋找目標的邏輯 (這就是你說的"判斷")
-    findTarget() {
-        // 簡單邏輯：找距離最近的設備
-        if (components.length === 0) return;
-        this.target = components[Math.floor(Math.random() * components.length)];
-    }
-
-    update() {
-        if (!this.target) {
-            this.findTarget();
-            return;
+    think() {
+        if (!this.target && components.length > 0) {
+            // 尋找最近的設備
+            this.target = components[Math.floor(Math.random() * components.length)];
+            debugLog.innerText = `系統日誌：${this.name} 決定去使用 ${this.target.type}`;
         }
+    }
 
-        // 移動邏輯
-        const dx = this.target.x + 20 - this.x;
-        const dy = this.target.y + 20 - this.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+    move() {
+        if (this.target) {
+            const dx = this.target.x + 20 - this.x;
+            const dy = this.target.y + 20 - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance > 5) {
-            this.x += (dx / distance) * this.speed;
-            this.y += (dy / distance) * this.speed;
-        } else {
-            // 到達目標，提升屬性
-            this.intel += 1;
-            this.target = null; // 完成任務，下一個循環會找新目標
+            if (dist > 5) {
+                this.x += (dx / dist) * this.speed;
+                this.y += (dy / dist) * this.speed;
+            } else {
+                this.iq += 1;
+                this.target = null; // 到達後重置，重新思考
+                statusText.innerText = `${this.name} 提升了智力！目前 IQ: ${this.iq}`;
+            }
         }
     }
 
     draw() {
         ctx.beginPath();
-        ctx.arc(this.x, this.y, 10, 0, Math.PI * 2);
-        ctx.fillStyle = '#50fa7b';
+        ctx.arc(this.x, this.y, 12, 0, Math.PI * 2);
+        ctx.fillStyle = '#2ecc71'; // 員工是綠色的小圓點
         ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.stroke();
+        
         ctx.fillStyle = 'white';
-        ctx.fillText(`${this.name} (IQ:${this.intel})`, this.x - 20, this.y - 15);
+        ctx.font = 'bold 13px Arial';
+        ctx.fillText(`${this.name} (IQ:${this.iq})`, this.x - 30, this.y - 20);
     }
 }
 
-// 初始化資料
-components.push(new OfficeComponent(1, 'PC', 100, 100, 'intel'));
-components.push(new OfficeComponent(2, 'Desk', 600, 400, 'efficiency'));
-components.push(new OfficeComponent(3, 'PC', 100, 400, 'intel'));
+// --- 3. 遊戲啟動邏輯 ---
+function init() {
+    console.log("遊戲初始化中...");
+    
+    // 放置設備
+    components.push(new OfficeComponent('電腦', 100, 100, '#3498db'));
+    components.push(new OfficeComponent('飲水機', 600, 150, '#9b59b6'));
+    components.push(new OfficeComponent('辦公桌', 400, 350, '#e67e22'));
 
-employees.push(new Employee('工程師 A', 400, 300));
-employees.push(new Employee('實習生 B', 450, 350));
+    // 產生員工
+    employees.push(new Employee('小王', 50, 450));
+    employees.push(new Employee('小美', 750, 450));
 
-// 遊戲主迴圈
+    requestAnimationFrame(gameLoop);
+}
+
 function gameLoop() {
+    // 1. 清除畫面
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 更新與繪製設備
+    // 2. 畫出背景網格（增加視覺感）
+    ctx.strokeStyle = '#34495e';
+    ctx.lineWidth = 0.5;
+    for(let i=0; i<canvas.width; i+=50) {
+        ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke();
+    }
+    for(let i=0; i<canvas.height; i+=50) {
+        ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke();
+    }
+
+    // 3. 繪製設備
     components.forEach(c => c.draw());
 
-    // 更新與繪製員工
+    // 4. 更新與繪製員工
     employees.forEach(e => {
-        e.update();
+        e.think();
+        e.move();
         e.draw();
     });
 
     requestAnimationFrame(gameLoop);
 }
 
-gameLoop();
+// 確保網頁讀取完才執行
+window.onload = init;
 </script>
 </body>
 </html>
